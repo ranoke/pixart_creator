@@ -19,7 +19,7 @@ endif
 # #############################################
 
 RESCOMP = windres
-INCLUDES += -Iinclude -Idependencies/GLFW/include -Idependencies/Glad/include
+INCLUDES += -Iinclude -Idependencies/GLFW/include -Idependencies/Glad/include -Idependencies/Nuklear
 FORCE_INCLUDE +=
 ALL_CPPFLAGS += $(CPPFLAGS) -MMD -MP $(DEFINES) $(INCLUDES)
 ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)

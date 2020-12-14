@@ -1,6 +1,8 @@
 #include "renderer.h"
 
 #include <glad/glad.h>
+
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image/stb_image.h>
 
 #include <stdbool.h>
@@ -25,8 +27,12 @@ renderer_t* renderer_ctor();
 void __renderer_init(uint32_t vertices_size, uint32_t indices_size);
 // compile shader
 r_shader_t __renderer_shader_compile(const char* vertex_src, const char* fragment_src);
-
+// create a texture from a file (.jpg image)
 r_texture_t __renderer_texture_create(const char* filepath);
+// create a texture from a array of bytes
+r_texture_t __renderer_texture_create_manual(void* data, uint32_t width, uint32_t height);
+// remove the texture from the memory
+void __renderer_texture_delete(r_texture_t texture);
 // for setting rendering shader
 void __renderer_shader_set(r_shader_t shader);
 // set projection matrix
@@ -49,6 +55,8 @@ r_object_t __renderer_object_load(float* vertices, uint32_t vertices_size, uint3
 // draw the loaded object with his transformation and color
 void __renderer_object_draw_transform_color(r_object_t obj, mat4_t* transf, vec3_t color);
 
+void __renderer_object_draw_transform_texture(r_object_t obj, mat4_t* transf, r_texture_t texture);
+
 
 renderer_t* renderer_ctor()
 {
@@ -58,6 +66,8 @@ renderer_t* renderer_ctor()
     r->init = &__renderer_init;
     r->shader_compile = &__renderer_shader_compile;
     r->texture_create = &__renderer_texture_create;
+    r->texture_create_manual = &__renderer_texture_create_manual;
+    r->texture_delete = &__renderer_texture_delete;
     r->shader_set = &__renderer_shader_set;
     r->projection_set = &__renderer_projection_set;
     r->view_set = &__renderer_view_set;
@@ -65,6 +75,7 @@ renderer_t* renderer_ctor()
     r->end = &__renderer_end;
     r->object_load = &__renderer_object_load;
     r->object_draw_tc = &__renderer_object_draw_transform_color;
+    r->object_draw_tt = &__renderer_object_draw_transform_texture;
 
     __renderer = r;
     return r;
@@ -82,16 +93,22 @@ void __renderer_init(uint32_t vertices_size, uint32_t indices_size)
     glGenBuffers(1, &vbo);
 
     // would like to use glNamed... over this 2 function calls  but it
-    // is supported it 4.5version
+    // is supported in 4.5version
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, vertices_size, 0, GL_DYNAMIC_DRAW);
+
 
     
     // not very good thing to do from what i know
     // it's better to allow its manual managing 
     // with some function, macro, etc
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
+    /// TODO
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(0 * sizeof(float)));
     glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);  
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);  
     
     glGenBuffers(1, &ibo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
@@ -208,8 +225,31 @@ r_texture_t __renderer_texture_create(const char* filepath)
         assert(false && "failed to load texture!");
     }
     stbi_image_free(data);
+    glBindTexture(GL_TEXTURE_2D, 0);
     r_texture_t t = { texture };
     return t;
+}
+
+r_texture_t __renderer_texture_create_manual(void* data, uint32_t width, uint32_t height)
+{
+    uint32_t texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    // set the texture wrapping/filtering options (on the currently bound texture object)
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    r_texture_t t = { texture };
+    return t;
+}
+
+void __renderer_texture_delete(r_texture_t texture)
+{
+    glDeleteTextures(1, &texture.texture);
 }
 
 void __renderer_shader_set(r_shader_t shader)
@@ -284,3 +324,16 @@ void __renderer_object_draw_transform_color(r_object_t obj, mat4_t* transf, vec3
     glDrawElements(GL_TRIANGLES, obj.count, GL_UNSIGNED_INT, obj.index_offset);
 }
 
+void __renderer_object_draw_transform_texture(r_object_t obj, mat4_t* transf, r_texture_t texture)
+{
+    check_renderer();
+    renderer_t* r = __renderer;
+    
+    glBindTexture(GL_TEXTURE_2D, texture.texture);
+    
+    uint32_t transf_loc = glGetUniformLocation(r->shader.program, "u_model");
+    glUniformMatrix4fv(transf_loc, 1, GL_FALSE, transf);
+
+
+    glDrawElements(GL_TRIANGLES, obj.count, GL_UNSIGNED_INT, obj.index_offset);
+}

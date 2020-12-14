@@ -37,7 +37,8 @@ project "editor"
     {
       "./include",
       "%{IncludeDir.GLFW}",
-      "%{IncludeDir.Glad}"
+      "%{IncludeDir.Glad}",
+      "%{IncludeDir.Nuklear}"
     }
 
     defines

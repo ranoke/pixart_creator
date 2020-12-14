@@ -29,6 +29,8 @@ typedef struct renderer_t{
     void (* init)(uint32_t, uint32_t);
     r_shader_t (* shader_compile)(const char*, const char*);
     r_texture_t (* texture_create)(const char*);
+    r_texture_t (* texture_create_manual)(void*, uint32_t, uint32_t);
+    void (* texture_delete)(r_texture_t);
     void (* shader_set)(r_shader_t);
     void (* projection_set)(mat4_t*);
     void (* view_set)(mat4_t*);
@@ -36,6 +38,7 @@ typedef struct renderer_t{
     void (* end)();
     r_object_t (* object_load)(float*, uint32_t, uint32_t*, uint32_t);
     void (* object_draw_tc)(r_object_t, mat4_t*, vec3_t);
+    void (* object_draw_tt)(r_object_t, mat4_t*, r_texture_t);
     
 
     r_shader_t shader; 

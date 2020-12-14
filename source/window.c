@@ -53,7 +53,7 @@ void __window_init()
 
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
-    glfwSwapInterval(1);
+    glfwSwapInterval(0);
 }
 
 void __window_update()

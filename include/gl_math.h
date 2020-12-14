@@ -7,6 +7,7 @@
 // this needs to be rewritten to make it faster and more cleaner
 // TODO
 
+
 typedef struct vec3_t{
 	float x;
 	float y;
@@ -23,6 +24,15 @@ typedef struct vec4_t{
 typedef struct mat4_t{
 	vec4_t rows[4];
 }mat4_t;
+
+typedef unsigned char uchar;
+
+typedef struct color_t{
+	uchar r;
+	uchar g;
+	uchar b;
+	uchar a;
+}color_t;
 
 /// vec3_t
 vec3_t vec3_construct(float x, float y, float z);
