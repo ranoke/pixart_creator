@@ -38,24 +38,24 @@ void __renderer_shader_set(r_shader_t shader);
 // set projection matrix
 // note the idea is to set it on start and don't worry
 // about it later
-void __renderer_projection_set(mat4_t* proj);
+void __renderer_projection_set(mat4 proj);
 // sets the view transformation
 // not sure is it ok, or do i have to create anoter
 // functions that will allow changing position, rotation seperatly
-void __renderer_view_set(mat4_t* view_transform);
+void __renderer_view_set(mat4 view_transform);
 // will simply bind vertex array and index buffer
 // and use the shader program
 void __renderer_begin();
 // empty for now
 void __renderer_end();
-// load object for drawing it in the future
+// load object for drawing it in the futur
 // simply loads the vertex data and index data to the buffers and then returns t_object_t that contains 
 // count of indices and offset for future draw
 r_object_t __renderer_object_load(float* vertices, uint32_t vertices_size, uint32_t* indices, uint32_t indices_size);
 // draw the loaded object with his transformation and color
-void __renderer_object_draw_transform_color(r_object_t obj, mat4_t* transf, vec3_t color);
+void __renderer_object_draw_transform_color(r_object_t obj, mat4 transf, vec3 color);
 
-void __renderer_object_draw_transform_texture(r_object_t obj, mat4_t* transf, r_texture_t texture);
+void __renderer_object_draw_transform_texture(r_object_t obj, mat4 transf, r_texture_t texture);
 
 
 renderer_t* renderer_ctor()
@@ -259,22 +259,22 @@ void __renderer_shader_set(r_shader_t shader)
     r->shader = shader;
 }
 
-void __renderer_projection_set(mat4_t* proj)
+void __renderer_projection_set(mat4 proj)
 {
     check_renderer();
     renderer_t* r = __renderer;
     glUseProgram(r->shader.program);
-    r->projection = *proj;
+    memcpy(r->projection, proj, sizeof(mat4));
     uint32_t loc = glGetUniformLocation(r->shader.program, "u_projection");
     glUniformMatrix4fv(loc, 1, GL_FALSE, proj);
 }
 
-void __renderer_view_set(mat4_t* view_transform)
+void __renderer_view_set(mat4 view_transform)
 {
     check_renderer();
     renderer_t* r = __renderer;
     glUseProgram(r->shader.program);
-    r->view_transformation = * view_transform;
+    memcpy(r->view_transformation, view_transform, sizeof(mat4));
     uint32_t loc = glGetUniformLocation(r->shader.program, "u_view");
     glUniformMatrix4fv(loc, 1, GL_FALSE, view_transform);
 }
@@ -309,7 +309,7 @@ r_object_t __renderer_object_load(float* vertices, uint32_t vertices_size, uint3
     return obj;
 }
 
-void __renderer_object_draw_transform_color(r_object_t obj, mat4_t* transf, vec3_t color)
+void __renderer_object_draw_transform_color(r_object_t obj, mat4 transf, vec3 color)
 {
     check_renderer();
     renderer_t* r = __renderer;
@@ -319,12 +319,12 @@ void __renderer_object_draw_transform_color(r_object_t obj, mat4_t* transf, vec3
     glUniformMatrix4fv(transf_loc, 1, GL_FALSE, transf);
 
     uint32_t color_loc = glGetUniformLocation(r->shader.program, "u_color");
-    glUniform3f(color_loc, color.x, color.y, color.z);
+    glUniform3f(color_loc, color[0], color[1], color[2]);
 
     glDrawElements(GL_TRIANGLES, obj.count, GL_UNSIGNED_INT, obj.index_offset);
 }
 
-void __renderer_object_draw_transform_texture(r_object_t obj, mat4_t* transf, r_texture_t texture)
+void __renderer_object_draw_transform_texture(r_object_t obj, mat4 transf, r_texture_t texture)
 {
     check_renderer();
     renderer_t* r = __renderer;

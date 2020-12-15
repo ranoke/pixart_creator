@@ -2,7 +2,7 @@
 #define __RENDERER_H__
 
 #include <stdint.h>
-#include <gl_math.h>
+#include <cglm/cglm.h>
 
 // i decided to wrap it in its own class to make
 // it much easier to think about
@@ -32,18 +32,18 @@ typedef struct renderer_t{
     r_texture_t (* texture_create_manual)(void*, uint32_t, uint32_t);
     void (* texture_delete)(r_texture_t);
     void (* shader_set)(r_shader_t);
-    void (* projection_set)(mat4_t*);
-    void (* view_set)(mat4_t*);
+    void (* projection_set)(mat4);
+    void (* view_set)(mat4);
     void (* begin)();
     void (* end)();
     r_object_t (* object_load)(float*, uint32_t, uint32_t*, uint32_t);
-    void (* object_draw_tc)(r_object_t, mat4_t*, vec3_t);
-    void (* object_draw_tt)(r_object_t, mat4_t*, r_texture_t);
+    void (* object_draw_tc)(r_object_t, mat4, vec3);
+    void (* object_draw_tt)(r_object_t, mat4, r_texture_t);
     
 
     r_shader_t shader; 
-    mat4_t projection;
-    mat4_t view_transformation;
+    mat4 projection;
+    mat4 view_transformation;
 
     uint32_t vertex_array;
     uint32_t vertex_buffer;

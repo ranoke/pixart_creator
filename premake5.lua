@@ -8,6 +8,8 @@ IncludeDir = {}
 IncludeDir["GLFW"] = "dependencies/GLFW/include"
 IncludeDir["Glad"] = "dependencies/Glad/include"
 IncludeDir["Nuklear"] = "dependencies/Nuklear"
+IncludeDir["cglm"] = "dependencies/cglm/include"
+
 
 
 
@@ -38,7 +40,8 @@ project "editor"
       "./include",
       "%{IncludeDir.GLFW}",
       "%{IncludeDir.Glad}",
-      "%{IncludeDir.Nuklear}"
+      "%{IncludeDir.Nuklear}",
+      "%{IncludeDir.cglm}"
     }
 
     defines
