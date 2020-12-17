@@ -22,51 +22,58 @@
 #include "nuklear_glfw_gl3.h"
 
 #define MAX_VERTEX_BUFFER 512 * 1024
-#define MAX_ELEMENT_BUFFER 128 * 1024
+#define MAX_ELEMENT_BUFFER 64 * 1024
 
-const char *vertex_src = "\n"
-                         "#version 330 core\n"
-                         "layout (location = 0) in vec3 aPos;\n"
-                         "layout (location = 1) in vec3 aColor;\n"
-                         "layout (location = 2) in vec2 aTexCoord;\n"
-                         "uniform mat4 u_model;\n"
-                         "uniform mat4 u_projection;\n"
-                         "uniform mat4 u_view;\n"
-                         "out vec3 ourColor;\n"
-                         "out vec2 TexCoord;\n"
-                         "void main()\n"
-                         "{\n"
-                         "gl_Position = u_projection*u_view*u_model*vec4(aPos, 1.0);\n"
-                         "ourColor = aColor;\n"
-                         "TexCoord = aTexCoord;\n"
-                         "}\n";
 
-const char *fragment_src = "\n"
-                           "#version 330 core\n"
-                           "out vec4 FragColor;\n"
-                           "in vec3 ourColor;\n"
-                           "in vec2 TexCoord;\n"
-                           "uniform sampler2D ourTexture;\n"
-                           "void main()\n"
-                           "{\n"
-                           "     FragColor = vec4(ourColor,1);\n"
-                           "}\n";
+const char* frame_vertex_src = "\n"
+"#version 330 core\n"
+"layout(location = 0) in vec3 a_pos;\n"
+"layout(location = 1) in vec2 a_uv;\n"
+"uniform mat4 u_projection;\n"
+"uniform mat4 u_view;\n"
+"out vec2 uv;\n"
+"void main()\n"
+"{\n"
+"	gl_Position = u_projection * u_view * vec4(a_pos, 1.0);\n"
+"	uv = a_uv;\n"
+"}";
+
+const char* frame_fragment_src = "\n"
+"#version 330 core\n"
+"uniform sampler2D u_tex;"
+"in vec2 uv;\n"
+"out vec4 frag_color;\n"
+"void main()\n"
+"{\n"
+"	frag_color = texture(u_tex, uv);\n"
+"}";
+
 
 float vertices[] = {
-    0.5f, 0.5f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f,   // top right
-    0.5f, -0.5f, 0.0f, 0.2f, 1.0f, 0.0f, 0.0f, 0.0f,  // bottom right
-    -0.5f, -0.5f, 0.0f, 0.3f, 0.0f, 1.0f, 1.0f, 0.0f, // bottom left
-    -0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f   // top left
+		-1.0f, -1.0f, 0.0,  0.0f, 0.0f,	// Top Left
+		 1.0f, -1.0f, 0.0, 1.0f, 0.0f,	// Top Right 
+		-1.0f,  1.0f, 0.0, 0.0f, 1.0f,  // Bottom Left
+		 1.0f,  1.0f, 0.0, 1.0f, 1.0f   // Bottom Right
 };
 unsigned int indices[] = {
-    // note that we start from 0!
-    0, 1, 3, // first triangle
-    1, 2, 3  // second triangle
+    0, 3, 2,
+    0, 1, 3
 };
 
 struct nk_glfw g_nk_glfw = {0};
 struct nk_context *g_nk_ctx;
 struct nk_colorf g_nk_color;
+
+mat4 cam_projection = GLM_MAT4_IDENTITY_INIT;
+mat4 cam_transform = GLM_MAT4_IDENTITY_INIT;
+
+typedef struct pix_frame{
+    vec2 tl, br;
+}pix_frame;
+
+typedef struct color_t{
+    GLubyte r,g,b,a;
+}color_t;
 
 void nk_init_ui();
 void nk_do_ui();
@@ -75,57 +82,171 @@ r_texture_t bg_texture;
 r_texture_t p_texture;
 
 window_t *window;
+renderer_t *r;
 
-void print_mat(mat4 m)
+void mat_print(float* m)
 {
-    for (int i = 0; i < 4; i++)
+    for(int i = 0; i<4; i++)
     {
-        for (int j = 0; j < 4; j++)
-        {
-            printf("%f ", m[i][j]);
-        }
+        for(int j = 0; j < 4; j++)
+            printf("%f ", m[i*4+j]);
         puts("");
     }
+}
+
+float map_range(float a1, float a2, float b1, float b2, float s)
+{
+    float slope = (b2 - b1) / (a2 - a1);
+	return (b1 + (slope * (s - a1)));
+}
+
+bool in_range(float start, float range, float val)
+{
+    if( (val-start) <= range && (val-start) >= 0) return true;
+    return false;
+}
+
+void pix_frame_compute_mouse_pos(pix_frame* pf, vec2 out)
+{
+    
+	vec4 ws = {0, 0, 800, 600};
+    uint32_t x, y;
+    window->get_mouse_pos(&x, &y);
+    printf("MOUSE: %d %d\n", x, y);
+    printf("TL: %f %f\n", pf->tl[0], pf->tl[1]);
+    printf("BR: %f %f\n", pf->br[0], pf->br[1]);
+
+    if(!in_range(pf->tl[0], pf->br[0]-pf->tl[0], x)
+        || !in_range(pf->tl[1], pf->br[1]-pf->tl[1], y))
+    {
+        out[0] = -1.f;
+        out[1] = -1.f;
+        return;   
+    }
+    printf("IN\n");
+
+    float range_x = pf->br[0]-pf->tl[0];
+    float range_y = pf->br[1]-pf->tl[1];
+
+    float scale_x = ((x-pf->tl[0])*100)/range_x;
+    float scale_y = ((y-pf->tl[1])*100)/range_y;
+    printf("R: %f %f\n", scale_x/100, scale_y/100);
+
+    out[0] = scale_x/100.f;
+    out[1] = scale_y/100.f;
+    
+}
+
+int32_t pix_frame_compute_idx_from_position(pix_frame* pf, float x, float y)
+{
+    x *= 64.f;
+    y *= 64.f;
+	if (x >= 64.f || y >= 64.f || x < 0 || y < 0 ) {
+		return -1;
+	}
+
+	return (y * 64.f + x);
+}
+
+void calc_corners(pix_frame* pf)
+{
+    mat4 res;
+    vec4 vp = {0,0,800,600};
+    vec3 tlv = { vertices[0], vertices[1], 0.f};
+    vec3 brv = { vertices[3*5], vertices[3*5+1], 0.f};
+    glm_mat4_mul(cam_projection, cam_transform, res);
+
+    vec3 out;
+    glm_project(tlv, res, vp, out);
+    
+    pf->tl[0] = out[0], pf->tl[1] = out[1];
+
+    glm_project(brv, res, vp, out);
+    
+    pf->br[0] = out[0], pf->br[1] = out[1];
 }
 
 int main()
 {
     window = window_ctor("PixArt Creator", 800, 600);
-    renderer_t *r = renderer_ctor();
+    r = renderer_ctor();
 
+    system("clear");
     window->init();
     r->init(MAX_VERTEX_BUFFER, MAX_ELEMENT_BUFFER);
-    r_shader_t shader = r->shader_compile(vertex_src, fragment_src);
-    r->shader_set(shader);
+   
 
-    mat4 ortho = GLM_MAT4_IDENTITY_INIT;
-    glm_ortho(-1, 1, -1, 1, 1, 200, ortho);
-    glm_mat4_transpose(ortho);
-    print_mat(ortho);
-
-    r->projection_set(ortho);
-    mat4 view = GLM_MAT4_IDENTITY_INIT;
-    r->view_set(view);
-    puts("");
-    print_mat(view);
-
-    r_object_t quad = r->object_load(vertices, sizeof(vertices), indices, sizeof(indices));
+    //glm_ortho(-1.f, 1.f, -1.f, 1.f, 1.f, 200.f, cam_projection);
+    glm_perspective(90.f, 800/600, 1.f, 100.f, cam_projection);
+    glm_mat4_transpose(cam_projection);
+    
+    vec3 tr = {2, 0, -1};
+    glm_translate(cam_transform, tr);
+    
+    
 
     mat4 t;
     glm_mat4_identity(t);
-    r->view_set(t);
-    puts("");
-    print_mat(t);
+
+    uint32_t twidth = 64, theight = 64;
+
+    color_t* tdata = malloc(twidth*theight*sizeof(color_t));
+    color_t c = {255, 0,0, 100};
+    color_t b = {0,0,255,100};
+    for(int i = 0; i < twidth*theight; i++)
+    {
+        if(i%5==0) tdata[i] = c;
+        else tdata[i] = b;
+        
+    }
+    
+
+    r_texture_desc_t desc;
+    desc.data = tdata;
+    desc.height = theight;
+    desc.width = twidth;
+
+     r_shader_t shader = r->shader_compile(frame_vertex_src, frame_fragment_src);
+        r->shader_set(shader);
+        r->projection_set(cam_projection);
+        r->view_set(cam_transform);
+        r_texture_t texture = r->texture_create_manual(desc);
+
+        r_object_t quad = r->object_load(vertices, sizeof(vertices), indices, sizeof(indices));
+    
+    pix_frame pf;
 
     nk_init_ui();
     glClearColor(0.25f, 0.25f, 0.25f, 1.f);
     while (1)
     {
+       
+
         glClear(GL_COLOR_BUFFER_BIT);
+        vec2 pos;
+        calc_corners(&pf);
+        pix_frame_compute_mouse_pos(&pf, pos);
+        vec2 ct = { cam_transform[3][1], cam_transform[3][2] };
+        //glm_vec2_add(pos, ct, pos);
+        printf("%f %f\n", pos[0], pos[1]);
+        
+        int id = pix_frame_compute_idx_from_position(&pf, pos[0], pos[1]);
+        printf("%d\n", id);
+        if(id!=-1)
+        {
+            color_t cl = {0,0,0,100};
+            tdata[id] = cl;
+            memset(tdata, 0, sizeof(color_t)*3);
+            
+        }
+
+        r->texture_update_manual(texture, desc);
+        
 
         r->begin();
-        r->object_draw_tc(quad, t, (vec3){1.0f, 0.0f, 0.0f});
+        r->object_draw_tt(quad, t, texture);
         r->end();
+        
 
         nk_do_ui();
         window->update();

@@ -7,6 +7,7 @@ typedef struct window_t{
 	void (* init)();
 	void (* update)();
 	void (* shutdown)();
+	void (* get_mouse_pos)(uint32_t*, uint32_t*);
 
 	char title[255];
 	uint32_t width;

@@ -12,6 +12,7 @@
 
 // like with window - don't know if its good
 renderer_t* __renderer;
+r_texture_t __texture;
 
 #define check_renderer() if(!__renderer)\
     {\
@@ -30,7 +31,9 @@ r_shader_t __renderer_shader_compile(const char* vertex_src, const char* fragmen
 // create a texture from a file (.jpg image)
 r_texture_t __renderer_texture_create(const char* filepath);
 // create a texture from a array of bytes
-r_texture_t __renderer_texture_create_manual(void* data, uint32_t width, uint32_t height);
+r_texture_t __renderer_texture_create_manual(r_texture_desc_t desc);
+
+void __renderer_texture_update_manual(r_texture_t texture, r_texture_desc_t desc);
 // remove the texture from the memory
 void __renderer_texture_delete(r_texture_t texture);
 // for setting rendering shader
@@ -67,6 +70,7 @@ renderer_t* renderer_ctor()
     r->shader_compile = &__renderer_shader_compile;
     r->texture_create = &__renderer_texture_create;
     r->texture_create_manual = &__renderer_texture_create_manual;
+    r->texture_update_manual = &__renderer_texture_update_manual;
     r->texture_delete = &__renderer_texture_delete;
     r->shader_set = &__renderer_shader_set;
     r->projection_set = &__renderer_projection_set;
@@ -103,12 +107,12 @@ void __renderer_init(uint32_t vertices_size, uint32_t indices_size)
     // it's better to allow its manual managing 
     // with some function, macro, etc
     /// TODO
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(0 * sizeof(float)));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(0 * sizeof(float)));
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    //glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    //glEnableVertexAttribArray(1);  
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(1);  
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-    glEnableVertexAttribArray(2);  
     
     glGenBuffers(1, &ibo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
@@ -141,6 +145,7 @@ r_shader_t __renderer_shader_compile(const char* vertex_src, const char* fragmen
 
             char log[1024];
             glGetShaderInfoLog(vertex, maxLength, &maxLength, log);
+            printf("%s\n", log);
             assert(false && "vertex shader compilation error");
             glDeleteShader(vertex);
             r_shader_t shader = {0};
@@ -161,7 +166,7 @@ r_shader_t __renderer_shader_compile(const char* vertex_src, const char* fragmen
 
             char log[1024];
             glGetShaderInfoLog(vertex, maxLength, &maxLength, log);
-            
+            printf("%s\n", log);
             glDeleteShader(vertex);
             assert(false && "fragment compilation error");
             r_shader_t shader = {0};
@@ -186,7 +191,7 @@ r_shader_t __renderer_shader_compile(const char* vertex_src, const char* fragmen
             char log[1024];
             glGetProgramInfoLog(program, maxLength, &maxLength, log);
             
-
+            printf("%s\n", log);
             assert(false && "failed to link shader");
             glDeleteProgram(program);
             glDeleteShader(vertex);
@@ -230,21 +235,25 @@ r_texture_t __renderer_texture_create(const char* filepath)
     return t;
 }
 
-r_texture_t __renderer_texture_create_manual(void* data, uint32_t width, uint32_t height)
+r_texture_t __renderer_texture_create_manual(r_texture_desc_t desc)
 {
     uint32_t texture;
+    glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
-    // set the texture wrapping/filtering options (on the currently bound texture object)
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, desc.width, desc.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, desc.data);
+    //glGenerateMipmap(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
     r_texture_t t = { texture };
     return t;
+}
+
+void __renderer_texture_update_manual(r_texture_t texture, r_texture_desc_t desc)
+{
+    glBindTexture(GL_TEXTURE_2D, texture.texture);    //A texture you have already created storage for
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, desc.width, desc.width, GL_RGBA, GL_UNSIGNED_BYTE, desc.data);
 }
 
 void __renderer_texture_delete(r_texture_t texture)
@@ -278,6 +287,7 @@ void __renderer_view_set(mat4 view_transform)
     uint32_t loc = glGetUniformLocation(r->shader.program, "u_view");
     glUniformMatrix4fv(loc, 1, GL_FALSE, view_transform);
 }
+
 
 void __renderer_begin()
 {
@@ -328,12 +338,17 @@ void __renderer_object_draw_transform_texture(r_object_t obj, mat4 transf, r_tex
 {
     check_renderer();
     renderer_t* r = __renderer;
+
     
+    
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture.texture);
+
     
     uint32_t transf_loc = glGetUniformLocation(r->shader.program, "u_model");
     glUniformMatrix4fv(transf_loc, 1, GL_FALSE, transf);
 
 
     glDrawElements(GL_TRIANGLES, obj.count, GL_UNSIGNED_INT, obj.index_offset);
+    glUseProgram(0);
 }

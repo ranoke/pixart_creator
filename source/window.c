@@ -10,10 +10,12 @@ window_t* window_ctor(const char* title, uint32_t width, uint32_t height);
 void __window_init();
 void __window_update();
 void __window_shutdown();
+void __window_get_mouse_pos(uint32_t* x, uint32_t* y);
 
 // no idea is this a good idea, but i want to return pointer to this after window
 // initialization
 window_t __window = {0};
+uint32_t mouse_x, mouse_y;
 
 
 
@@ -26,6 +28,7 @@ window_t* window_ctor(const char* title, uint32_t width, uint32_t height)
 	__window.init = &__window_init;
 	__window.update = &__window_update;
 	__window.shutdown = &__window_shutdown;
+	__window.get_mouse_pos = &__window_get_mouse_pos;
 
 	return &__window;
 }
@@ -54,10 +57,15 @@ void __window_init()
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
     glfwSwapInterval(1);
+
 }
 
 void __window_update()
 {
+	double x, y;
+	glfwGetCursorPos(__window.glfw_window, &x, &y);
+	mouse_y = (uint32_t)y;
+	mouse_x = (uint32_t)x;
 	glfwPollEvents();
 	glfwSwapBuffers(__window.glfw_window);
 }
@@ -67,5 +75,16 @@ void __window_shutdown()
 	glfwDestroyWindow(__window.glfw_window);
 	glfwTerminate();
 }
+
+void __window_get_mouse_pos(uint32_t* x, uint32_t* y)
+{
+	if(    mouse_x < 0 
+		|| mouse_y < 0 
+		|| mouse_x > __window.width 
+		|| mouse_y > __window.height) return;
+	*x = mouse_x;
+	*y = mouse_y;
+}
+
 
 

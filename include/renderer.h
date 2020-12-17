@@ -15,6 +15,12 @@ typedef struct r_texture_t{
     uint32_t texture;
 }r_texture_t;
 
+typedef struct r_texture_desc_t{
+    void* data;
+    uint32_t width;
+    uint32_t height;
+}r_texture_desc_t;
+
 
 // for rendering specific object we only need this two values
 // the offset in the IBO(index buffer object) and the count
@@ -29,7 +35,8 @@ typedef struct renderer_t{
     void (* init)(uint32_t, uint32_t);
     r_shader_t (* shader_compile)(const char*, const char*);
     r_texture_t (* texture_create)(const char*);
-    r_texture_t (* texture_create_manual)(void*, uint32_t, uint32_t);
+    r_texture_t (* texture_create_manual)(r_texture_desc_t);
+    void (* texture_update_manual)(r_texture_t, r_texture_desc_t);
     void (* texture_delete)(r_texture_t);
     void (* shader_set)(r_shader_t);
     void (* projection_set)(mat4);
