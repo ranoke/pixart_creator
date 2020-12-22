@@ -12,7 +12,6 @@
 
 // like with window - don't know if its good
 renderer_t* __renderer;
-r_texture_t __texture;
 
 #define check_renderer() if(!__renderer)\
     {\
@@ -31,9 +30,7 @@ r_shader_t __renderer_shader_compile(const char* vertex_src, const char* fragmen
 // create a texture from a file (.jpg image)
 r_texture_t __renderer_texture_create(const char* filepath);
 // create a texture from a array of bytes
-r_texture_t __renderer_texture_create_manual(r_texture_desc_t desc);
-
-void __renderer_texture_update_manual(r_texture_t texture, r_texture_desc_t desc);
+r_texture_t __renderer_texture_create_manual(void* data, uint32_t width, uint32_t height);
 // remove the texture from the memory
 void __renderer_texture_delete(r_texture_t texture);
 // for setting rendering shader
@@ -51,7 +48,7 @@ void __renderer_view_set(mat4 view_transform);
 void __renderer_begin();
 // empty for now
 void __renderer_end();
-// load object for drawing it in the futur
+// load object for drawing it in the future
 // simply loads the vertex data and index data to the buffers and then returns t_object_t that contains 
 // count of indices and offset for future draw
 r_object_t __renderer_object_load(float* vertices, uint32_t vertices_size, uint32_t* indices, uint32_t indices_size);
@@ -70,7 +67,6 @@ renderer_t* renderer_ctor()
     r->shader_compile = &__renderer_shader_compile;
     r->texture_create = &__renderer_texture_create;
     r->texture_create_manual = &__renderer_texture_create_manual;
-    r->texture_update_manual = &__renderer_texture_update_manual;
     r->texture_delete = &__renderer_texture_delete;
     r->shader_set = &__renderer_shader_set;
     r->projection_set = &__renderer_projection_set;
@@ -108,10 +104,8 @@ void __renderer_init(uint32_t vertices_size, uint32_t indices_size)
     // with some function, macro, etc
     /// TODO
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(0 * sizeof(float)));
-    glEnableVertexAttribArray(0);
-    //glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-    //glEnableVertexAttribArray(1);  
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(0); 
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);  
     
     glGenBuffers(1, &ibo);
@@ -190,8 +184,8 @@ r_shader_t __renderer_shader_compile(const char* vertex_src, const char* fragmen
 
             char log[1024];
             glGetProgramInfoLog(program, maxLength, &maxLength, log);
-            
             printf("%s\n", log);
+
             assert(false && "failed to link shader");
             glDeleteProgram(program);
             glDeleteShader(vertex);
@@ -235,25 +229,21 @@ r_texture_t __renderer_texture_create(const char* filepath)
     return t;
 }
 
-r_texture_t __renderer_texture_create_manual(r_texture_desc_t desc)
+r_texture_t __renderer_texture_create_manual(void* data, uint32_t width, uint32_t height)
 {
     uint32_t texture;
-    glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
+    // set the texture wrapping/filtering options (on the currently bound texture object)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);	
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, desc.width, desc.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, desc.data);
-    //glGenerateMipmap(GL_TEXTURE_2D);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
     r_texture_t t = { texture };
     return t;
-}
-
-void __renderer_texture_update_manual(r_texture_t texture, r_texture_desc_t desc)
-{
-    glBindTexture(GL_TEXTURE_2D, texture.texture);    //A texture you have already created storage for
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, desc.width, desc.width, GL_RGBA, GL_UNSIGNED_BYTE, desc.data);
 }
 
 void __renderer_texture_delete(r_texture_t texture)
@@ -273,7 +263,7 @@ void __renderer_projection_set(mat4 proj)
     check_renderer();
     renderer_t* r = __renderer;
     glUseProgram(r->shader.program);
-    memcpy(r->projection, proj, sizeof(mat4));
+    //r->projection = proj;
     uint32_t loc = glGetUniformLocation(r->shader.program, "u_projection");
     glUniformMatrix4fv(loc, 1, GL_FALSE, proj);
 }
@@ -283,11 +273,10 @@ void __renderer_view_set(mat4 view_transform)
     check_renderer();
     renderer_t* r = __renderer;
     glUseProgram(r->shader.program);
-    memcpy(r->view_transformation, view_transform, sizeof(mat4));
+    //r->view_transformation = view_transform;
     uint32_t loc = glGetUniformLocation(r->shader.program, "u_view");
     glUniformMatrix4fv(loc, 1, GL_FALSE, view_transform);
 }
-
 
 void __renderer_begin()
 {
@@ -338,17 +327,12 @@ void __renderer_object_draw_transform_texture(r_object_t obj, mat4 transf, r_tex
 {
     check_renderer();
     renderer_t* r = __renderer;
-
     
-    
-    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture.texture);
-
     
     uint32_t transf_loc = glGetUniformLocation(r->shader.program, "u_model");
     glUniformMatrix4fv(transf_loc, 1, GL_FALSE, transf);
 
 
     glDrawElements(GL_TRIANGLES, obj.count, GL_UNSIGNED_INT, obj.index_offset);
-    glUseProgram(0);
 }
